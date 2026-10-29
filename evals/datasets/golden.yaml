@@ -137,8 +137,6 @@
 
 - id: usart-init-steps
   question: "What are the steps to initialize the USART on ATmega328P?"
-  chip: atmega328p
-  category: multi_step
   answerable: true
   expected_answer: >
     Set the baud rate (UBRRn), set the frame format (UCSRnC), enable the
@@ -261,4 +259,25 @@
     Lock bits can only be erased back to "1" with the Chip Erase command.
   must_contain: ["Chip Erase"]
   sources:
-    - section: "28.1 Program And Data Memory Lock Bits"   #
+    - section: "28.1 Program And Data Memory Lock Bits"   # Table 28-2, mode 3
+      pages: [289]
+  eval_method: llm_judge
+  judge_rubric: >
+    Must identify mode 3 (or describe its effects) AND name Chip Erase as the
+    only way to reset lock bits. Missing Chip Erase = fail.
+  notes: "Inverted logic trap: programmed = 0. Answer is in table rows."
+
+- id: lockbits-programming-order
+  question: "In what order should I program the fuse bits and the lock bits?"
+  answerable: true
+  expected_answer: >
+    Program the Fuse bits and Boot Lock bits before programming LB1 and LB2.
+  must_contain: ["before"]
+  sources:
+    - section: "28.1 Program And Data Memory Lock Bits"   # Table 28-2 note 1
+      pages: [289]
+  eval_method: llm_judge
+  judge_rubric: >
+    Must state Fuse bits (and Boot Lock bits) go first, LB1/LB2 last.
+    Reversed order = fail.
+  notes: "Answer exists only in a table footnote."

@@ -1,0 +1,264 @@
+- id: stack-pointer-register
+  question: How stack pointer is implemented in the AVR?
+  expected_answer: It's implemented as two 8-bit register in the I/O space. There are two pointers SPH (Stack Pointer High) and SPL (Stack Pointer Low).
+  answerable: true
+  sources:
+    - section: "6.5 Stack Pointer"
+      pages: [13, 14]
+  eval_method: contains
+  must_contain: ["SPH", "SPL"]
+
+- id: interrupt-handling
+  question: How interrupts are handling?
+  expected_answer: >
+    Each interrupt has it's own enable bit. To make it working there should be it's own enable bit and global enable I-bit
+    to 1 in status register SREG
+  answerable: true
+  sources: 
+    - section: "6.7 Reset and Interrupt Handling"
+      pages: [15]
+  eval_method: contains
+  must_contain: ["SREG", "I-bit"]
+
+- id: spi-master-mode-setup
+  question: "How to set master mode in SPI?"
+  answerable: true
+  expected_answer: >
+    Set the MSTR bit in SPCR. If SS is configured as an input, it must be
+    held high, otherwise the SPI drops back to slave mode.
+  must_contain: ["MSTR", "SPCR"]
+  sources:
+    - section: "19.3.2 Master Mode"
+      pages: [ 174]
+    - section: "19.5.1 SPCR - SPI Control Register"   # bit SPE, MSTR
+      pages: [ 176]
+  eval_method: llm_judge
+  judge_rubric: >
+    Must mention setting MSTR in SPCR. Full credit only if it also mentions
+    the SS pin requirement (output, or input held high). Mentioning SPE
+    (SPI enable) is a plus, not required.
+  notes: >
+    Section 19.3.2 alone doesn't mention SPE; a complete answer needs the
+    SPCR register description too.
+
+- id: gpio-input-pullup-config
+  question: "How do I configure a pin as an input with the internal pull-up enabled?"
+  answerable: true
+  expected_answer: "DDxn = 0, PORTxn = 1, and PUD in MCUCR = 0."
+  must_contain: ["DDxn", "PORTxn", "PUD"]
+  sources:
+    - section: "14.2.3 Switching Between Input and Output"   # Table 14-1
+      pages: [86]
+  eval_method: llm_judge
+  judge_rubric: >
+    Must give DDxn=0 and PORTxn=1. Full credit only if it mentions PUD must
+    be 0 (pull-ups not globally disabled).
+  notes: "Answer lives in Table 14-1 – tests table parsing."
+
+- id: gpio-tristate-to-output-high
+  question: "Can I switch a pin directly from tri-state input to output high? What happens in between?"
+  answerable: true
+  expected_answer: >
+    No, an intermediate state must occur: either input with pull-up (0b01)
+    or output low (0b10). The pull-up state is normally fine; if not, set
+    PUD in MCUCR to disable all pull-ups.
+  must_contain: ["pull-up", "PUD"]
+  sources:
+    - section: "14.2.3 Switching Between Input and Output"
+      pages: [86]
+  eval_method: llm_judge
+  judge_rubric: >
+    Must state that an intermediate state is unavoidable and name at least
+    one of the two (pull-up or output low). Full credit if it mentions PUD
+    as the way to avoid the pull-up state.
+
+- id: gpio-pud-effect
+  question: "A pin has DDxn=0 and PORTxn=1, but the pull-up doesn't seem to work. What could cause this?"
+  answerable: true
+  expected_answer: >
+    The PUD bit in MCUCR is set, which disables all pull-ups in all ports;
+    the pin is then tri-state (Hi-Z).
+  must_contain: ["PUD", "MCUCR"]
+  sources:
+    - section: "14.2.3 Switching Between Input and Output"   # Table 14-1, row 3
+      pages: [86]
+  eval_method: contains
+
+- id: reset-sources-list
+  question: "What are the reset sources of the ATmega328P?"
+  answerable: true
+  expected_answer: >
+    Four: Power-on Reset, External Reset (RESET pin), Watchdog System Reset,
+    Brown-out Reset.
+  must_contain: ["Power-on", "External", "Watchdog", "Brown-out"]
+  sources:
+    - section: "11.2 Reset Sources"
+      pages: [56]
+  eval_method: contains
+  notes: "All four must be present – partial list = chunk split mid-list."
+
+- id: reset-brownout-condition
+  question: "Under what conditions does a Brown-out Reset occur?"
+  answerable: true
+  expected_answer: >
+    When VCC drops below the Brown-out Reset threshold (VBOT) and the
+    Brown-out Detector is enabled.
+  must_contain: ["VBOT", "enabled"]
+  sources:
+    - section: "11.2 Reset Sources"
+      pages: [56]
+  eval_method: llm_judge
+  judge_rubric: >
+    Must mention both conditions: VCC below VBOT AND the detector being
+    enabled. Missing the "enabled" condition = incorrect.
+
+- id: reset-random-low-battery
+  question: "My battery-powered device keeps resetting when the battery gets weak. Which reset source is likely responsible?"
+  answerable: true
+  expected_answer: >
+    Brown-out Reset: VCC falls below VBOT while the Brown-out Detector is
+    enabled.
+  must_contain: ["Brown-out"]
+  sources:
+    - section: "11.2 Reset Sources"
+      pages: [56]
+  eval_method: contains
+
+- id: reset-sources-family
+  question: "Does the ATmega168PA have the same reset sources as the ATmega328P?"
+  answerable: true
+  expected_answer: "Yes, the whole ATmega48A/PA/88A/PA/168A/PA/328/P family has the same four reset sources."
+  must_contain: ["four"]
+  sources:
+    - section: "11.2 Reset Sources"
+      pages: [56]
+  eval_method: llm_judge
+  judge_rubric: "Must answer yes and indicate the sources are shared across the family."
+
+- id: usart-init-steps
+  question: "What are the steps to initialize the USART on ATmega328P?"
+  chip: atmega328p
+  category: multi_step
+  answerable: true
+  expected_answer: >
+    Set the baud rate (UBRRn), set the frame format (UCSRnC), enable the
+    transmitter and/or receiver (TXENn/RXENn in UCSRnB). For interrupt-driven
+    operation, disable global interrupts during initialization.
+  must_contain: ["UBRR", "UCSR"]
+  sources:
+    - section: "20.5 USART Initialization"
+      pages: [184, 185]
+  eval_method: llm_judge
+  judge_rubric: >
+    Must list baud rate, frame format, enabling TX/RX. Full credit if it
+    mentions disabling global interrupts for interrupt-driven operation.
+
+- id: usart-ubrr-example-value
+  question: "In the datasheet's C example for USART initialization, what UBRR value results from FOSC = 1843200 and BAUD = 9600?"
+  answerable: true
+  expected_answer: "11 (MYUBRR = FOSC/16/BAUD - 1 = 1843200/16/9600 - 1)."
+  must_contain: ["11"]
+  sources:
+    - section: "20.5 USART Initialization"   # C Code Example
+      pages: [185]
+  eval_method: contains
+  notes: >
+    Answer requires both reading code from a code block and arithmetic.
+    Good candidate for the register-calculator tool later.
+
+- id: usart-reinit-precautions
+  question: "What should I check before changing the baud rate of an already running USART?"
+  answerable: true
+  expected_answer: >
+    Make sure there are no ongoing transmissions: use the TXCn flag to check
+    the transmitter finished, and RXC to check there's no unread data in the
+    receive buffer. TXCn must be cleared before each transmission if used
+    this way.
+  must_contain: ["TXC", "RXC"]
+  sources:
+    - section: "20.5 USART Initialization"
+      pages: [184]
+  eval_method: llm_judge
+  judge_rubric: >
+    Must mention both TXCn (transmit complete) and RXC (receive buffer).
+    Full credit if it notes TXCn must be cleared before each transmission.
+
+- id: usart-example-frame-format
+  question: "What frame format does the datasheet's USART initialization example configure?"
+  answerable: true
+  expected_answer: "8 data bits, 2 stop bits (USBSn = 1, UCSZn = 3)."
+  must_contain: ["8", "2"]
+  sources:
+    - section: "20.5 USART Initialization"
+      pages: [185]
+  eval_method: llm_judge
+  judge_rubric: "Must state 8 data bits and 2 stop bits."
+
+- id: unanswerable-other-chip
+  question: "What is the maximum clock frequency of the ATmega2560?"
+  answerable: false
+  expected_answer: "The documentation doesn't cover the ATmega2560."
+  sources: []
+  eval_method: llm_judge
+  judge_rubric: >
+    Correct only if the system says the documents don't cover this chip.
+    Giving any frequency (even a correct one from general knowledge) = fail,
+    because it isn't grounded in the provided sources.
+  notes: >
+    Tests that the system doesn't answer from parametric memory or borrow
+    values from the 328P family. Becomes answerable if the 2560 datasheet
+    is added to the corpus – update this record then.
+
+- id: unanswerable-false-premise-usb
+  question: "How do I configure the USB controller on the ATmega328P?"
+  answerable: false
+  expected_answer: >
+    The documentation describes no USB controller for the ATmega328P.
+  sources: []
+  eval_method: llm_judge
+  judge_rubric: >
+    Correct if the system says there's no USB peripheral described in the
+    documentation (or that the chip has none). Fail if it invents USB
+    registers or a configuration procedure. Suggesting USART + an external
+    USB-serial converter is acceptable as an addition.
+  notes: "False premise – the question assumes a feature that doesn't exist."
+
+- id: unanswerable-arduino-pin-mapping
+  question: "Which Arduino Uno pin number corresponds to PB5?"
+  answerable: false
+  expected_answer: "The datasheet doesn't contain Arduino board pin mappings."
+  sources: []
+  eval_method: llm_judge
+  judge_rubric: >
+    Correct only if the system says the documentation doesn't cover Arduino
+    pin numbering. Answering "pin 13" fails – it's true in reality but not
+    grounded in the sources.
+
+- id: lockbits-count-48pa-vs-328p
+  question: "How many lock bits does the ATmega48PA have compared to the ATmega328P?"
+  answerable: true
+  expected_answer: >
+    ATmega48PA has two lock bits (LB1, LB2); ATmega328P has six (LB1, LB2
+    plus Boot Lock bits BLB01, BLB02, BLB11, BLB12).
+  must_contain: ["two", "six"]
+  sources:
+    - section: "28.1 Program And Data Memory Lock Bits"   # text + Table 28-1 note 2
+      pages: [289]
+  eval_method: llm_judge
+  judge_rubric: >
+    Must give 2 for ATmega48PA and 6 for ATmega328P. Full credit if it
+    explains the difference is the Boot Lock bits (BLBxx).
+  notes: >
+    The BLBxx restriction is in a table footnote ("Only on ATmega88A/.../328P")
+    – tests whether footnotes survive parsing.
+
+- id: lockbits-locked-out-recovery
+  question: "I programmed both LB1 and LB2 and now I can't verify the flash or change the fuses. What happened and how do I undo it?"
+  answerable: true
+  expected_answer: >
+    LB1=0 and LB2=0 is protection mode 3: programming and verification of
+    Flash and EEPROM are disabled and Fuse and Boot Lock bits are locked.
+    Lock bits can only be erased back to "1" with the Chip Erase command.
+  must_contain: ["Chip Erase"]
+  sources:
+    - section: "28.1 Program And Data Memory Lock Bits"   #

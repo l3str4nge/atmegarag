@@ -1,27 +1,36 @@
 - id: stack-pointer-register
-  question: How stack pointer is implemented in the AVR?
-  expected_answer: It's implemented as two 8-bit register in the I/O space. There are two pointers SPH (Stack Pointer High) and SPL (Stack Pointer Low).
+  question: "How is the Stack Pointer implemented in the AVR?"
+  expected_answer: >
+    As two 8-bit registers in the I/O space: SPH (Stack Pointer High)
+    and SPL (Stack Pointer Low).
   answerable: true
   sources:
     - section: "6.5 Stack Pointer"
       pages: [13, 14]
-  eval_method: contains
-  must_contain: ["SPH", "SPL"]
+  eval_method: llm_judge
+  judge_rubric: >
+    Must state that the Stack Pointer is made of two 8-bit registers, SPH and
+    SPL. Mentioning that they are located in the I/O space is a plus, not
+    required. Missing either SPH or SPL = fail.
 
 - id: interrupt-handling
-  question: How interrupts are handling?
+  question: "What must be enabled for an interrupt to be executed on the ATmega328P?"
   expected_answer: >
-    Each interrupt has it's own enable bit. To make it working there should be it's own enable bit and global enable I-bit
-    to 1 in status register SREG
+    Both the interrupt's individual enable bit and the Global Interrupt
+    Enable bit (I-bit) in SREG must be set to 1.
   answerable: true
-  sources: 
+  sources:
     - section: "6.7 Reset and Interrupt Handling"
       pages: [15]
-  eval_method: contains
-  must_contain: ["SREG", "I-bit"]
+  eval_method: llm_judge
+  judge_rubric: >
+    Must mention both conditions: the interrupt's individual enable bit AND
+    the global interrupt enable (I) bit in SREG. Any wording of the I-bit is
+    acceptable (I bit, I flag, Global Interrupt Enable, sei()). Only one of
+    the two conditions = fail.
 
 - id: spi-master-mode-setup
-  question: "How to set master mode in SPI?"
+  question: "How to set master mode in SPI on the ATmega328P?"
   answerable: true
   expected_answer: >
     Set the MSTR bit in SPCR. If SS is configured as an input, it must be
@@ -34,25 +43,28 @@
       pages: [ 176]
   eval_method: llm_judge
   judge_rubric: >
-    Must mention setting MSTR in SPCR. Full credit only if it also mentions
-    the SS pin requirement (output, or input held high). Mentioning SPE
-    (SPI enable) is a plus, not required.
+    PASS if it says to set MSTR in SPCR AND mentions the SS pin requirement
+    (SS configured as output, or held high if configured as input).
+    Mentioning SPE (SPI enable) is optional.
+    FAIL if MSTR in SPCR is missing or the SS requirement is missing.
   notes: >
     Section 19.3.2 alone doesn't mention SPE; a complete answer needs the
     SPCR register description too.
 
 - id: gpio-input-pullup-config
-  question: "How do I configure a pin as an input with the internal pull-up enabled?"
+  question: "Which register bits must be set to configure an ATmega328P pin as an input with the internal pull-up enabled?"  
   answerable: true
   expected_answer: "DDxn = 0, PORTxn = 1, and PUD in MCUCR = 0."
-  must_contain: ["DDxn", "PORTxn", "PUD"]
   sources:
     - section: "14.2.3 Switching Between Input and Output"   # Table 14-1
       pages: [86]
   eval_method: llm_judge
   judge_rubric: >
-    Must give DDxn=0 and PORTxn=1. Full credit only if it mentions PUD must
-    be 0 (pull-ups not globally disabled).
+    PASS if it gives register-level settings: DDxn = 0 and PORTxn = 1
+    (any concrete port/pin naming like DDRB/PORTB is acceptable).
+    Mentioning that PUD in MCUCR must be 0 is optional.
+    FAIL if it only gives a high-level API (e.g. Arduino INPUT_PULLUP)
+    without the register bits, or if the bit values are wrong.
   notes: "Answer lives in Table 14-1 – tests table parsing."
 
 - id: gpio-tristate-to-output-high
@@ -62,15 +74,18 @@
     No, an intermediate state must occur: either input with pull-up (0b01)
     or output low (0b10). The pull-up state is normally fine; if not, set
     PUD in MCUCR to disable all pull-ups.
-  must_contain: ["pull-up", "PUD"]
   sources:
     - section: "14.2.3 Switching Between Input and Output"
       pages: [86]
   eval_method: llm_judge
   judge_rubric: >
-    Must state that an intermediate state is unavoidable and name at least
-    one of the two (pull-up or output low). Full credit if it mentions PUD
-    as the way to avoid the pull-up state.
+    PASS if it states that a direct switch is not possible and an
+    intermediate state must occur, and names at least one of the two
+    intermediate states: input with pull-up ({DDxn, PORTxn} = 0b01) or
+    output low (0b10).
+    Mentioning the PUD bit as a way to avoid the pull-up state is optional.
+    FAIL if it says a direct switch is possible, or does not name any
+    intermediate state.
 
 - id: gpio-pud-effect
   question: "A pin has DDxn=0 and PORTxn=1, but the pull-up doesn't seem to work. What could cause this?"
@@ -127,13 +142,17 @@
 - id: reset-sources-family
   question: "Does the ATmega168PA have the same reset sources as the ATmega328P?"
   answerable: true
-  expected_answer: "Yes, the whole ATmega48A/PA/88A/PA/168A/PA/328/P family has the same four reset sources."
-  must_contain: ["four"]
+  expected_answer: >
+    Yes, both have the same four reset sources: Power-on, External,
+    Watchdog System, and Brown-out Reset.
   sources:
     - section: "11.2 Reset Sources"
       pages: [56]
   eval_method: llm_judge
-  judge_rubric: "Must answer yes and indicate the sources are shared across the family."
+  judge_rubric: >
+    PASS if it answers yes (the reset sources are the same for both chips).
+    Listing the four sources or mentioning the wider family is optional.
+    FAIL if it says no or claims the sources differ.
 
 - id: usart-init-steps
   question: "What are the steps to initialize the USART on ATmega328P?"
@@ -148,8 +167,11 @@
       pages: [184, 185]
   eval_method: llm_judge
   judge_rubric: >
-    Must list baud rate, frame format, enabling TX/RX. Full credit if it
-    mentions disabling global interrupts for interrupt-driven operation.
+    PASS if it lists all three steps: setting the baud rate (UBRRn),
+    setting the frame format, and enabling the transmitter and/or receiver.
+    Mentioning that global interrupts should be disabled during
+    initialization for interrupt-driven operation is optional.
+    FAIL if any of the three steps is missing.
 
 - id: usart-ubrr-example-value
   question: "In the datasheet's C example for USART initialization, what UBRR value results from FOSC = 1843200 and BAUD = 9600?"
@@ -172,14 +194,18 @@
     the transmitter finished, and RXC to check there's no unread data in the
     receive buffer. TXCn must be cleared before each transmission if used
     this way.
-  must_contain: ["TXC", "RXC"]
   sources:
     - section: "20.5 USART Initialization"
       pages: [184]
   eval_method: llm_judge
   judge_rubric: >
-    Must mention both TXCn (transmit complete) and RXC (receive buffer).
-    Full credit if it notes TXCn must be cleared before each transmission.
+    PASS if it names both flags: TXCn (Transmit Complete) to check the
+    transmitter has finished, and RXCn (Receive Complete) to check there is
+    no unread data in the receive buffer. Register-suffixed forms like TXC0
+    and RXC0 are acceptable.
+    Mentioning that TXCn must be cleared before each transmission is optional.
+    FAIL if either flag is missing or only described generically
+    (e.g. "wait for transmission complete" without naming TXCn).
 
 - id: usart-example-frame-format
   question: "What frame format does the datasheet's USART initialization example configure?"
@@ -238,14 +264,15 @@
   expected_answer: >
     ATmega48PA has two lock bits (LB1, LB2); ATmega328P has six (LB1, LB2
     plus Boot Lock bits BLB01, BLB02, BLB11, BLB12).
-  must_contain: ["two", "six"]
   sources:
     - section: "28.1 Program And Data Memory Lock Bits"   # text + Table 28-1 note 2
       pages: [289]
   eval_method: llm_judge
   judge_rubric: >
-    Must give 2 for ATmega48PA and 6 for ATmega328P. Full credit if it
-    explains the difference is the Boot Lock bits (BLBxx).
+    PASS if it gives 2 lock bits for the ATmega48PA and 6 for the ATmega328P.
+    Explaining that the difference comes from the Boot Lock bits (BLBxx,
+    or "boot-section lock bits") is optional.
+    FAIL if either number is wrong or missing.
   notes: >
     The BLBxx restriction is in a table footnote ("Only on ATmega88A/.../328P")
     – tests whether footnotes survive parsing.

@@ -1,0 +1,150 @@
+{
+  "name": "baseline",
+  "created_at": "2026-10-29T14:10:46.757266",
+  "model": "openai/gpt-6-luna",
+  "judge_model": "anthropic/claude-sonnet-5.5",
+  "passed": 12,
+  "total": 20,
+  "cases": [
+    {
+      "id": "stack-pointer-register",
+      "eval_method": "llm_judge",
+      "answer": "In AVR, the Stack Pointer (SP) is a **special register that holds an address in data SRAM**. The stack itself is ordinary SRAM—not a separate hardware stack.\n\n- On many AVRs, SP is split into **SPL** (low byte) and **SPH** (high byte). Smaller devices may have only SPL.\n- The stack normally grows **downward** in memory: `PUSH`, `CALL`, and interrupt entry use stack space; `POP`, `RET`, and interrupt return release it.\n- Calls and interrupts save the return address on the stack. Software or compiler-generated code may also save registers there.\n- SP must point into available SRAM. Startup code typically sets it to `RAMEND`; stack overflow is generally not detected and can overwrite other data.\n\nFor example, on a device with both SP bytes, assembly can set it with `RAMEND`’s high and low bytes written to SPH and SPL. The exact register availability and reset behavior depend on the AVR model.",
+      "passed": true,
+      "reason": "PASS: The answer states that the Stack Pointer is split into SPL (low byte) and SPH (high byte), which meets the requirement. It does not mention the I/O space, but the rubric treats that as optional. The note that smaller devices may have only SPL is accurate and does not contradict the rubric."
+    },
+    {
+      "id": "interrupt-handling",
+      "eval_method": "llm_judge",
+      "answer": "An interrupt executes on the ATmega328P when:\n\n- **Global interrupts are enabled** — the I bit in `SREG` is set, usually with `sei()`.\n- **That specific interrupt source is enabled** — its enable bit is set in the relevant register, such as `EIMSK` or `TIMSKx`.\n- **The interrupt condition occurs** — the peripheral sets its interrupt flag or request.\n\nAll three are needed.",
+      "passed": true,
+      "reason": "PASS: The answer names both required conditions, the global I bit in SREG (via sei()) and the specific interrupt's enable bit. The extra point about the interrupt condition occurring does not contradict the expected answer."
+    },
+    {
+      "id": "spi-master-mode-setup",
+      "eval_method": "llm_judge",
+      "answer": "Set the **MSTR** bit in the ATmega328P’s `SPCR` register and enable SPI with **SPE**. Also configure the SPI pins as outputs/inputs.\n\n```c\n#include <avr/io.h>\n\nvoid spi_init(void)\n{\n    // PB3 = MOSI, PB5 = SCK, PB2 = hardware SS: outputs\n    DDRB |= _BV(DDB3) | _BV(DDB5) | _BV(DDB2);\n\n    // PB4 = MISO: input\n    DDRB &= ~_BV(DDB4);\n\n    // Keep SS high when idle\n    PORTB |= _BV(PORTB2);\n\n    // Enable SPI, master mode; mode 0, MSB first, clock = F_CPU / 4\n    SPCR = _BV(SPE) | _BV(MSTR);\n    SPSR = 0;  // SPI2X = 0\n}\n```\n\n**Important:** Configure PB2/SS as an output even if you use a different GPIO for chip select. If PB2 is an input and is driven low, the hardware can clear `MSTR` and switch SPI out of master mode.\n\nFor a 16 MHz clock, the example uses a 4 MHz SPI clock. You can select the clock rate with `SPR1:SPR0` in `SPCR` and `SPI2X` in `SPSR`. Set `CPOL` and `CPHA` in `SPCR` as needed for the SPI mode your device requires.\n\nOn an Arduino Uno, `SPI.begin()` configures SPI as master; the SPI pins are D11 (MOSI), D12 (MISO), and D13 (SCK).",
+      "passed": true,
+      "reason": "PASS: The answer sets MSTR in SPCR and covers the SS requirement, saying to configure PB2/SS as an output and noting that if it is an input driven low, MSTR is cleared and SPI leaves master mode."
+    },
+    {
+      "id": "gpio-input-pullup-config",
+      "eval_method": "llm_judge",
+      "answer": "For the pin’s bit **n**:\n\n- Clear `DDRxn` to make it an input.\n- Set `PORTxn` to enable its internal pull-up.\n- Ensure `MCUCR.PUD` is clear; setting `PUD` disables pull-ups globally.\n\nFor example, for `PB0`: clear `DDB0`, set `PORTB0`, and clear `PUD`.",
+      "passed": true,
+      "reason": "PASS: The answer gives the correct register-level settings: DDxn cleared, PORTxn set, and PUD in MCUCR cleared, with a concrete PB0 example."
+    },
+    {
+      "id": "gpio-tristate-to-output-high",
+      "eval_method": "llm_judge",
+      "answer": "Usually, yes. While the pin is a tri-state input, its output driver is off, so the pin is high-impedance; its voltage may float or be set by an external circuit.\n\nWhen output mode is enabled, the output driver starts driving the value held in the output latch. To avoid a brief low pulse on many microcontrollers, **write `1` to the output latch first, then change the pin to output**. The pin stays high-impedance until output mode is enabled, then drives high. If you enable output before setting the latch, it may briefly drive the latch’s previous value.\n\nThe exact transition and timing depend on the chip. Also, if something external is driving the pin low, switching to output high can cause electrical contention. Check the device datasheet if the transition must be glitch-free.",
+      "passed": false,
+      "reason": "FAIL: The answer says a direct switch is usually possible and never names an intermediate state (input with pull-up or output low), which contradicts the expected answer."
+    },
+    {
+      "id": "gpio-pud-effect",
+      "eval_method": "contains",
+      "answer": "On AVR, the global **PUD** (“Pull-up Disable”) bit can override the per-pin setting. Even with `DDxn = 0` and `PORTxn = 1`, the pull-up is off if `PUD = 1` (often in `MCUCR`). Clear it to enable internal pull-ups.\n\nIf `PUD` is clear, check that the pin isn’t being driven low by external circuitry, assigned to a peripheral, or configured differently elsewhere in your code. Also verify the pin mapping and the device’s datasheet.",
+      "passed": true,
+      "reason": "all terms present"
+    },
+    {
+      "id": "reset-sources-list",
+      "eval_method": "contains",
+      "answer": "The ATmega328P has four reset sources:\n\n- **Power-on Reset (POR):** Power is applied or the supply voltage rises from zero.\n- **External Reset:** The active-low **RESET** pin is pulled low.\n- **Brown-out Reset (BOR):** The brown-out detector resets the MCU if supply voltage falls below its configured threshold.\n- **Watchdog System Reset:** The watchdog timer times out while configured to reset the MCU.\n\nThe **MCUSR** register records the cause with the corresponding flags: `PORF`, `EXTRF`, `BORF`, and `WDRF`.",
+      "passed": true,
+      "reason": "all terms present"
+    },
+    {
+      "id": "reset-brownout-condition",
+      "eval_method": "llm_judge",
+      "answer": "A Brown-out Reset occurs when the device’s supply voltage drops below its configured brown-out threshold for long enough to trigger the reset circuit. This can happen during a power dip, startup, or a sudden increase in power demand. The exact threshold and timing depend on the device; some devices also use hysteresis to avoid repeated resets as the voltage fluctuates near the threshold.",
+      "passed": false,
+      "reason": "FAIL: The answer says the supply voltage drops below the brown-out threshold, but it never says the Brown-out Detector must be enabled, which the rubric requires."
+    },
+    {
+      "id": "reset-random-low-battery",
+      "eval_method": "contains",
+      "answer": "A **brownout reset (BOR)** is the likely cause. As the battery weakens, its voltage can dip below the device’s minimum operating threshold, triggering a reset.",
+      "passed": false,
+      "reason": "missing: Brown-out"
+    },
+    {
+      "id": "reset-sources-family",
+      "eval_method": "llm_judge",
+      "answer": "Yes. The ATmega168PA and ATmega328P have the same four reset sources:\n\n- Power-on Reset\n- External Reset (RESET pin)\n- Watchdog System Reset\n- Brown-out Reset\n\nBoth also report these causes through the corresponding flags in `MCUSR`. Brown-out behavior depends on the fuse settings and supply voltage.",
+      "passed": true,
+      "reason": "PASS: The answer says yes and lists the same four reset sources as the expected answer, and its extra notes about MCUSR flags and brown-out fuse settings are accurate."
+    },
+    {
+      "id": "usart-init-steps",
+      "eval_method": "llm_judge",
+      "answer": "To initialize the ATmega328P USART:\n\n1. **Choose the baud rate** and calculate `UBRR0`:\n   - Normal asynchronous mode: `UBRR0 = F_CPU / (16 × baud) − 1`\n   - Double-speed mode (`U2X0 = 1`): `UBRR0 = F_CPU / (8 × baud) − 1`\n\n2. **Set the baud-rate registers** `UBRR0H` and `UBRR0L`.\n\n3. **Select the USART mode and frame format** in `UCSR0C`—for example, asynchronous, 8 data bits, no parity, and 1 stop bit (8N1).\n\n4. **Enable the transmitter and receiver** by setting `TXEN0` and `RXEN0` in `UCSR0B`. Enable interrupts there too if you plan to use them.\n\nExample for a 16 MHz clock and 9600 baud:\n\n```c\n#include <avr/io.h>\n\nvoid usart_init(void)\n{\n    // Normal asynchronous mode; UBRR0 = 103 for 16 MHz and 9600 baud\n    UCSR0A = 0;\n    UBRR0H = 0;\n    UBRR0L = 103;\n\n    // 8 data bits, no parity, 1 stop bit\n    UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);\n\n    // Enable receiver and transmitter\n    UCSR0B = (1 << RXEN0) | (1 << TXEN0);\n}\n```\n\nMake sure `F_CPU` and the baud-rate calculation match your actual clock frequency.",
+      "passed": true,
+      "reason": "PASS: The answer covers all three required steps: setting the baud rate (UBRR0H/L), setting the frame format (UCSR0C), and enabling the transmitter and receiver (TXEN0/RXEN0 in UCSR0B)."
+    },
+    {
+      "id": "usart-ubrr-example-value",
+      "eval_method": "contains",
+      "answer": "Using the standard USART formula, **UBRR = FOSC / (16 × BAUD) − 1**. With FOSC = 1,843,200 and BAUD = 9,600, **UBRR = 11**.",
+      "passed": true,
+      "reason": "all terms present"
+    },
+    {
+      "id": "usart-reinit-precautions",
+      "eval_method": "llm_judge",
+      "answer": "Before changing a running USART’s baud rate, check:\n\n- **The other endpoint is ready to switch.** Agree on the new rate and a switch point; changing only one end will make communication fail.\n- **No transmission is in progress.** Stop queuing new data, let DMA and software queues drain, then wait for the USART’s **transmission-complete** indication—not merely “data register empty.” This helps avoid truncating the final frame.\n- **Reception is at a safe point.** Avoid changing the rate during a received frame. Decide how to handle unread data and pending error or interrupt flags.\n- **The new rate is valid for the actual clock.** Recalculate the baud divisor using the current peripheral clock and oversampling mode, and check the resulting baud error against the other device’s tolerance.\n- **Other serial settings still match.** Confirm data bits, parity, stop bits, oversampling, and any synchronous-mode or flow-control settings.\n- **The MCU permits the update sequence you intend.** Some USARTs allow a baud-register update only when idle; others require disabling the transmitter, receiver, or whole USART. Follow the device reference manual.\n- **Software and hardware state are accounted for.** Check DMA, interrupts, flow-control lines, queued data, and any protocol timeouts or state machines that assume the old rate.\n\nA typical safe sequence is: pause traffic → drain TX and wait for transmission complete → reach an RX idle point and handle pending data → apply the documented register-update procedure → resume traffic and verify with a handshake or test message. Have a timeout or recovery path in case the two ends do not switch successfully.",
+      "passed": false,
+      "reason": "FAIL: The answer refers only generically to a \"transmission-complete indication\" without naming TXCn, and it never names the RXC flag, only mentioning \"unread data\" and handling pending data in general terms."
+    },
+    {
+      "id": "usart-example-frame-format",
+      "eval_method": "llm_judge",
+      "answer": "Which datasheet or device are you referring to? Please share the datasheet, a link, or the USART initialization example.",
+      "passed": false,
+      "reason": "FAIL: The answer does not state 8 data bits and 2 stop bits; it only asks for clarification."
+    },
+    {
+      "id": "unanswerable-other-chip",
+      "eval_method": "llm_judge",
+      "answer": "The ATmega2560’s maximum clock frequency is **16 MHz** at a supply voltage of **4.5–5.5 V**. At lower voltages, its maximum rated frequency is lower.",
+      "passed": false,
+      "reason": "FAIL: The answer gives a frequency (16 MHz) instead of saying the documentation doesn't cover the ATmega2560, which the rubric explicitly treats as a fail."
+    },
+    {
+      "id": "unanswerable-false-premise-usb",
+      "eval_method": "llm_judge",
+      "answer": "The **ATmega328P has no built-in USB controller**, so there’s no USB peripheral to configure in its registers.\n\nOn common Arduino Uno/Nano boards, a separate chip—such as an ATmega16U2, CH340, or CP2102—handles USB. It appears to your computer as a serial port and connects to the ATmega328P’s UART pins, **PD0/RX** and **PD1/TX**. Configure the ATmega328P’s UART to match the bridge’s baud rate. For example, at 16 MHz and 9600 baud:\n\n```c\nUBRR0H = 0;\nUBRR0L = 103;  // 9600 baud at 16 MHz, normal speed\nUCSR0B = _BV(RXEN0) | _BV(TXEN0);  // enable UART receive and transmit\nUCSR0C = _BV(UCSZ01) | _BV(UCSZ00); // 8 data bits, 1 stop bit, no parity\n```\n\nWith the Arduino framework, the equivalent is `Serial.begin(9600);`.\n\nIf you need the ATmega328P itself to act as a USB device, you can use a software USB library such as **V-USB**, but it bit-bangs USB on GPIO pins and has significant limitations. For more capable USB device support—or USB host support—use a microcontroller or external USB controller designed for it.",
+      "passed": true,
+      "reason": "PASS: The answer states that the ATmega328P has no built-in USB controller, and its additions (USART with a USB-serial bridge, V-USB) do not invent USB registers or a USB configuration procedure."
+    },
+    {
+      "id": "unanswerable-arduino-pin-mapping",
+      "eval_method": "llm_judge",
+      "answer": "PB5 corresponds to Arduino Uno digital pin **13 (D13)**. On the ATmega328P, it’s also the SPI clock pin (SCK) and is connected to the onboard LED.",
+      "passed": false,
+      "reason": "FAIL: The answer gives \"pin 13 (D13)\" instead of saying the documentation doesn't cover Arduino pin numbering, which the rubric explicitly marks as failing."
+    },
+    {
+      "id": "lockbits-count-48pa-vs-328p",
+      "eval_method": "llm_judge",
+      "answer": "Both the **ATmega48PA** and **ATmega328P** have **6 lock bits**. There’s no difference in the number.",
+      "passed": false,
+      "reason": "FAIL: The answer says both chips have 6 lock bits, but the ATmega48PA has 2, so the number for the ATmega48PA is wrong."
+    },
+    {
+      "id": "lockbits-locked-out-recovery",
+      "eval_method": "llm_judge",
+      "answer": "If this is an AVR, you programmed both lock bits to **0**—the active state. That selects the strongest lock mode, which blocks Flash/EEPROM verification and programming. You haven’t necessarily bricked the chip.\n\nUse your programmer’s **Chip Erase** command. A chip erase clears the lock bits back to **1**, after which you should be able to access the device and change its fuses. It does **not** normally erase fuse settings; it may erase EEPROM, depending on the device’s EESAVE fuse. It will erase the program, so don’t do it if you need to preserve the existing contents.\n\nIf chip erase over ISP fails, the lock bits alone usually aren’t the cause. A fuse may have disabled ISP or the reset pin, or selected an external clock; recovery may then require a clock signal or high-voltage programming. The exact recovery method depends on the chip model.",
+      "passed": true,
+      "reason": "PASS: The answer says both lock bits are programmed to 0, which gives the strongest lock mode that blocks Flash/EEPROM verification and programming (it describes the effects of mode 3). It also names Chip Erase as the way to reset the lock bits to 1. It does not say explicitly that Chip Erase is the only way, but it points to it as the recovery method, which is enough here."
+    },
+    {
+      "id": "lockbits-programming-order",
+      "eval_method": "llm_judge",
+      "answer": "For most AVR devices, program and verify the **fuse bits first**, then program the **lock bits last**, after loading and verifying the firmware.\n\nLock bits can restrict further reading or programming, so setting them early may make recovery harder. Be especially careful with fuse settings that disable ISP, disable/reset the reset pin, or select an unavailable clock source; confirm you still have a way to program the device before applying them. Check your specific chip’s datasheet, since the exact behavior varies by device.",
+      "passed": true,
+      "reason": "PASS: The answer states that fuse bits are programmed first and lock bits last, which matches the expected order. It does not name Boot Lock bits explicitly, but the rubric's core requirement (fuses first, LB1/LB2 last) is met."
+    }
+  ]
+}

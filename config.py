@@ -10,6 +10,11 @@ load_dotenv(PROJECT_ROOT / ".env")
 DATA_DIR = PROJECT_ROOT / "data"
 EVALS_DIR = PROJECT_ROOT / "evals"
 GOLDEN_PATH = EVALS_DIR / "datasets" / "golden.yaml"
+RESULTS_DIR = EVALS_DIR / "results"
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-fable-5")
+BASELINE_MODEL = os.getenv("BASELINE_MODEL", "openai/gpt-6-luna")
+JUDGE_MODEL =os.getenv("JUDGE_MODEL", "anthropic/claude-sonnet-5.5")
+
+EVAL_WORKERS = int(os.getenv("EVAL_WORKERS", "8"))
